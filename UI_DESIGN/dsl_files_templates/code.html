@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Liquid Script IDE - Files &amp; Templates</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .liquid-glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(0, 242, 254, 0.15) 0%, rgba(155, 59, 255, 0) 70%);
+            pointer-events: none;
+            z-index: 0;
+            border-radius: 50%;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#002022",
+                        "primary-fixed": "#6ff6ff",
+                        "surface-container-low": "#171b26",
+                        "on-tertiary-fixed-variant": "#00513d",
+                        "secondary-container": "#3196e6",
+                        "error-container": "#93000a",
+                        "on-primary": "#00373a",
+                        "on-surface-variant": "#b9cacb",
+                        "surface-variant": "#313540",
+                        "on-secondary-container": "#002c4b",
+                        "tertiary-container": "#00f8bf",
+                        "secondary-fixed": "#d0e4ff",
+                        "outline": "#849495",
+                        "on-secondary-fixed-variant": "#004a7a",
+                        "secondary-fixed-dim": "#9bcbff",
+                        "tertiary-fixed": "#31ffc7",
+                        "primary-container": "#00f2fe",
+                        "on-tertiary": "#003829",
+                        "background": "#0f131d",
+                        "on-tertiary-fixed": "#002117",
+                        "inverse-primary": "#00696f",
+                        "secondary": "#9bcbff",
+                        "surface-container-high": "#262a35",
+                        "surface-container-lowest": "#0a0e18",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed-variant": "#004f53",
+                        "surface-tint": "#00dce6",
+                        "surface-dim": "#0f131d",
+                        "surface-bright": "#353944",
+                        "on-primary-container": "#006a70",
+                        "inverse-on-surface": "#2c303b",
+                        "tertiary-fixed-dim": "#00e1ad",
+                        "primary-fixed-dim": "#00dce6",
+                        "on-error-container": "#ffdad6",
+                        "outline-variant": "#3a494b",
+                        "surface": "#0f131d",
+                        "surface-container": "#1c1f2a",
+                        "on-background": "#dfe2f1",
+                        "inverse-surface": "#dfe2f1",
+                        "on-secondary": "#003256",
+                        "surface-container-highest": "#313540",
+                        "on-tertiary-container": "#006d53",
+                        "primary": "#e0fdff",
+                        "on-surface": "#dfe2f1",
+                        "on-secondary-fixed": "#001d34",
+                        "tertiary": "#dfffef",
+                        "on-error": "#690005"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "xl": "48px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "editor-gutter": "32px",
+                        "sm": "8px",
+                        "xs": "4px",
+                        "panel-margin": "12px"
+                    },
+                    "fontFamily": {
+                        "code-md": ["JetBrains Mono"],
+                        "label-caps": ["Inter"],
+                        "headline-md": ["Outfit"],
+                        "display-lg": ["Outfit"],
+                        "body-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-sm": ["Outfit"]
+                    },
+                    "fontSize": {
+                        "code-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                        "display-lg": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "headline-sm": ["18px", {"lineHeight": "1.4", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container/30 overflow-hidden">
+<!-- Background Shader -->
+<!-- STITCH_SHADER_START:ANIMATION_4 class="fixed inset-0 w-full h-full opacity-40 mix-blend-screen" -->
+<div class="fixed inset-0 w-full h-full opacity-40 mix-blend-screen" style="display:block;">
+<canvas id="shader-canvas-ANIMATION_4" style="display:block;width:100%;height:100%"></canvas>
+<script>
+(function() {
+  const canvas = document.getElementById('shader-canvas-ANIMATION_4');
+
+  // Sync the WebGL drawing-buffer size with the CSS-driven layout size.
+  // This fires on initial layout and whenever the element is resized.
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  const fs = `precision highp float;
+varying vec2 v_texCoord;
+uniform float u_time;
+uniform vec2 u_resolution;
+
+// Noise function
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+void main() {
+    vec2 uv = v_texCoord;
+    
+    // Base colors from Liquid Glass TDD
+    vec3 color1 = vec3(0.043, 0.059, 0.098); // #0b0f19
+    vec3 color2 = vec3(0.118, 0.106, 0.294); // #1e1b4b
+    vec3 accent1 = vec3(0.0, 0.949, 0.996); // #00f2fe (Neon Cyan)
+    vec3 accent2 = vec3(0.31, 0.675, 0.996); // #4facfe (Electric Purple)
+    
+    // Animated organic noise
+    float n = noise(uv * 3.0 + u_time * 0.1);
+    n += noise(uv * 6.0 - u_time * 0.05) * 0.5;
+    
+    // Mix base colors
+    vec3 baseColor = mix(color1, color2, uv.y + n * 0.3);
+    
+    // Add liquid glows
+    float glow1 = smoothstep(0.8, 0.0, length(uv - vec2(0.2, 0.8) + vec2(sin(u_time*0.5)*0.1, cos(u_time*0.3)*0.1)));
+    float glow2 = smoothstep(0.6, 0.0, length(uv - vec2(0.8, 0.2) + vec2(cos(u_time*0.4)*0.15, sin(u_time*0.6)*0.1)));
+    
+    vec3 finalColor = baseColor + accent1 * glow1 * 0.2 + accent2 * glow2 * 0.2;
+    
+    gl_FragColor = vec4(finalColor, 1.0);
+}`;
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  // u_mouse is in pixel coordinates matching u_resolution (ShaderToy convention).
+  // Shaders that need normalized coords should use: u_mouse / u_resolution.
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+</div>
+<!-- STITCH_SHADER_END:ANIMATION_4 -->
+<!-- App Shell -->
+<div class="relative z-10 flex h-screen overflow-hidden">
+<!-- SideNav (Component Logic: SideNavBar) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col h-screen w-16 md:w-64 border-r border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,242,254,0.15)] transition-all duration-300">
+<div class="p-lg flex items-center gap-sm">
+<div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-container to-secondary-container flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined font-bold" data-icon="token">token</span>
+</div>
+<div class="hidden md:block">
+<h1 class="font-display-lg text-headline-sm text-primary-container tracking-tighter">Liquid Script</h1>
+<p class="font-label-caps text-[10px] text-on-surface-variant/50">DSL IDE</p>
+</div>
+</div>
+<nav class="flex-1 mt-md">
+<!-- Active Tab: Files -->
+<a class="group flex items-center gap-md bg-primary-container/20 text-primary-fixed border-l-2 border-primary-container p-4 hover:bg-white/10 transition-all duration-300 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+<span class="hidden md:block font-label-caps text-label-caps">Files</span>
+</a>
+<a class="group flex items-center gap-md text-on-surface-variant/70 p-4 hover:bg-white/10 transition-all duration-300 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="hidden md:block font-label-caps text-label-caps">Tasks</span>
+</a>
+<a class="group flex items-center gap-md text-on-surface-variant/70 p-4 hover:bg-white/10 transition-all duration-300 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="hidden md:block font-label-caps text-label-caps">Settings</span>
+</a>
+</nav>
+<div class="p-md border-t border-white/5">
+<div class="flex items-center gap-sm p-sm rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a software architect with a focused expression, set against a background of dimly lit server racks and soft blue ambient lighting. The aesthetic is high-tech, professional, and corporate, matching the futuristic dark-mode theme of the Liquid Script IDE." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPZZsRqYbuBPTFREi4x-Xzm-dltyorjWz1iH-YjFlVI_461RBCagdAAaVS6rcROzXG1X0rJaXAvZ6VngSDlCOO6ms3wBFIZSIXU0OSwDMjDZtndOtcEvJZpjpny6vxpTCqxZDqx1JxBQg5B8e8P2bjbuKxJOI22nbjaJc1nC7N7XOJ0QcQwEbCffnaXe-wK3CmqE3EpBE3gCasK9lz_RBSSQk26bztu7Vroh04FEMYVzZVLmEzTjuIMeZLqr5qS2Yj75GTjON6ywdl"/>
+</div>
+<div class="hidden md:block overflow-hidden">
+<p class="text-body-sm font-bold truncate">Automation Admin</p>
+<p class="text-[10px] text-on-surface-variant truncate">Premium Tier</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col ml-16 md:ml-64">
+<!-- TopAppBar (Component Logic: TopAppBar) -->
+<header class="flex justify-between items-center px-lg w-full sticky top-0 z-40 w-full h-16 border-b border-white/5 bg-surface/30 backdrop-blur-md">
+<div class="flex items-center gap-xl">
+<h2 class="font-headline-md text-headline-md font-bold text-primary-container">Files &amp; Explorer</h2>
+<nav class="hidden lg:flex items-center gap-lg">
+<a class="text-primary-fixed border-b-2 border-primary-fixed pb-1 font-headline-sm text-headline-sm transition-colors duration-200" href="#">Explorer</a>
+<a class="text-on-surface-variant hover:text-primary-container hover:bg-white/5 font-headline-sm text-headline-sm transition-colors duration-200" href="#">Variables</a>
+<a class="text-on-surface-variant hover:text-primary-container hover:bg-white/5 font-headline-sm text-headline-sm transition-colors duration-200" href="#">Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<div class="hidden md:flex items-center bg-surface-container/50 border border-white/10 rounded-full px-sm py-1">
+<span class="material-symbols-outlined text-on-surface-variant px-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-48 text-on-surface" placeholder="Search templates..." type="text"/>
+</div>
+<div class="flex items-center gap-sm">
+<button class="p-2 text-on-surface-variant hover:text-primary-container transition-colors"><span class="material-symbols-outlined" data-icon="pause_circle">pause_circle</span></button>
+<button class="p-2 text-on-surface-variant hover:text-primary-container transition-colors"><span class="material-symbols-outlined" data-icon="refresh">refresh</span></button>
+<div class="h-6 w-[1px] bg-white/10 mx-1"></div>
+<button class="bg-primary-container text-on-primary-fixed px-lg py-1.5 rounded-full font-bold hover:shadow-[0_0_15px_rgba(0,242,254,0.3)] transition-all active:scale-95">Run</button>
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="flex-1 flex overflow-hidden p-panel-margin gap-panel-margin">
+<!-- Left Panel: Folder Tree -->
+<div class="w-72 glass-panel rounded-xl flex flex-col">
+<div class="p-md border-b border-white/5 flex justify-between items-center">
+<span class="font-label-caps text-label-caps text-on-surface-variant">WORKSPACE</span>
+<div class="flex gap-1">
+<button class="p-1 hover:bg-white/5 rounded"><span class="material-symbols-outlined text-[18px]" data-icon="create_new_folder">create_new_folder</span></button>
+<button class="p-1 hover:bg-white/5 rounded"><span class="material-symbols-outlined text-[18px]" data-icon="note_add">note_add</span></button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-sm">
+<!-- Tree Item: Folder -->
+<div class="space-y-1">
+<details class="group" open="">
+<summary class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 cursor-pointer list-none text-on-surface/80 group-open:text-primary-fixed">
+<span class="material-symbols-outlined text-[18px] transition-transform group-open:rotate-90" data-icon="chevron_right">chevron_right</span>
+<span class="material-symbols-outlined text-[20px]" data-icon="folder" style="font-variation-settings: 'FILL' 1;">folder</span>
+<span class="text-body-sm font-medium">projects</span>
+</summary>
+<div class="ml-6 space-y-1 mt-1 border-l border-white/5">
+<div class="flex items-center gap-2 p-2 rounded-lg bg-primary-container/10 border border-primary-container/20 text-primary-fixed cursor-pointer">
+<span class="material-symbols-outlined text-[20px]" data-icon="description">description</span>
+<span class="text-body-sm font-medium">api_monitor.lscript</span>
+</div>
+<div class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 text-on-surface/60 cursor-pointer">
+<span class="material-symbols-outlined text-[20px]" data-icon="description">description</span>
+<span class="text-body-sm">db_cleanup.lscript</span>
+</div>
+<details class="group/sub">
+<summary class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 cursor-pointer list-none text-on-surface/60">
+<span class="material-symbols-outlined text-[18px] transition-transform group-open/sub:rotate-90" data-icon="chevron_right">chevron_right</span>
+<span class="material-symbols-outlined text-[20px]" data-icon="folder" style="font-variation-settings: 'FILL' 1;">folder</span>
+<span class="text-body-sm">utils</span>
+</summary>
+</details>
+</div>
+</details>
+<div class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 text-on-surface/60 cursor-pointer">
+<span class="material-symbols-outlined text-[18px] opacity-0" data-icon="chevron_right">chevron_right</span>
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="text-body-sm">config.json</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Panel: Template Gallery -->
+<div class="flex-1 flex flex-col gap-lg">
+<!-- Header Info -->
+<div class="flex justify-between items-end">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface font-bold">Template Gallery</h3>
+<p class="text-on-surface-variant/70 text-body-sm">Accelerate your workflow with pre-built DSL snippets.</p>
+</div>
+<div class="flex gap-sm">
+<span class="px-md py-1 rounded-full glass-panel text-[10px] font-label-caps border-primary-container/30 text-primary-container">32 TOTAL</span>
+<span class="px-md py-1 rounded-full glass-panel text-[10px] font-label-caps border-white/10">8 UPDATED</span>
+</div>
+</div>
+<!-- Bento-style Gallery Grid -->
+<div class="flex-1 overflow-y-auto pr-sm pb-xl">
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-lg">
+<!-- Template Card 1: File Sync -->
+<div class="glass-panel rounded-xl overflow-hidden group hover:border-primary-container/40 transition-all duration-300 flex flex-col">
+<div class="relative h-40 bg-surface-container-lowest/50 overflow-hidden">
+<!-- Preview Background -->
+<div class="absolute inset-0 opacity-20 group-hover:scale-110 transition-transform duration-700" data-alt="A macro close-up of flowing fiber optic cables emitting blue and cyan light, symbolizing high-speed data synchronization and digital infrastructure. The background is a deep, dark void with particles of light, matching the neon-futuristic aesthetic of the IDE." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAtoj84qmiUJ6725SekJCRrxElSIq1q7D59VOVSWxRCS-19441alc2HoEf8FAUo0vYy-1G_X94QptCylneTbPAPMiErqEpkhguZ0h45utQyT0pEbkos67NjE2SeGqP-dBjFq9UvHg5kUHcy3lybLoMTltNF_LCOiOySCpTK4hCIZ-D2957w-GgwVZmd9_Hj19326bk2Y9FeLq8J8qDqYIcyZZYBryYEIvyThjGy9CYVaSdJl4JX3YNnU31goywMlWLl9SS6ylcHlvXk')"></div>
+<div class="absolute inset-0 p-md flex flex-col justify-end">
+<div class="p-sm glass-panel rounded bg-surface/80 border-white/20">
+<pre class="font-code-md text-[10px] text-tertiary-fixed-dim">sync(src, dest) {
+  watch(src).pipe(dest);
+}</pre>
+</div>
+</div>
+<div class="absolute top-md right-md">
+<span class="material-symbols-outlined text-primary-container text-[20px] drop-shadow-[0_0_10px_rgba(0,242,254,0.5)]" data-icon="auto_awesome">auto_awesome</span>
+</div>
+</div>
+<div class="p-md flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline-sm text-on-surface font-bold mb-xs">File Sync</h4>
+<p class="text-body-sm text-on-surface-variant/80 line-clamp-2">Bi-directional filesystem synchronization with conflict resolution and integrity checks.</p>
+</div>
+<div class="mt-md flex items-center justify-between">
+<div class="flex gap-2">
+<span class="text-[10px] px-2 py-0.5 rounded border border-white/10 text-on-surface-variant font-label-caps">STORAGE</span>
+<span class="text-[10px] px-2 py-0.5 rounded border border-tertiary-fixed/30 text-tertiary-fixed font-label-caps">STABLE</span>
+</div>
+<button class="w-8 h-8 rounded-full glass-panel flex items-center justify-center hover:bg-primary-container hover:text-on-primary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Template Card 2: Report Gen -->
+<div class="glass-panel rounded-xl overflow-hidden group hover:border-secondary-container/40 transition-all duration-300 flex flex-col">
+<div class="relative h-40 bg-surface-container-lowest/50 overflow-hidden">
+<div class="absolute inset-0 opacity-20 group-hover:scale-110 transition-transform duration-700" data-alt="A clean, abstract 3D rendering of floating translucent charts and data bars in vibrant purple and cyan colors. The lighting is soft and moody, with reflections on a dark glossy surface, creating a sophisticated business intelligence feel that fits the professional IDE interface." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBTErg0ijJ9OLY4_664PojbiZ0jzPd6YEt6pKp1AsFwunXcbzmmlS7d2AZpgowy1qp5dQ21tLLWu9ibMZhryN8mlS5YIENPyxKJ70-Cv2uCe_QKWY2FvgvQy23ezRZI5uwysKQ-YnRM8C8HI1f-ZglRY8Yax5T9-PDeh_gDrTsFwaiBLEwL3bSaf39KLrfms8I1saaHAM1zSYlg_U5HEP_LKNQclVWC1vIsIUtAmO7Wghb6_sFcszc8QRZ-cCIz-UwbKPKEVMaGwy_d')"></div>
+<div class="absolute inset-0 p-md flex flex-col justify-end">
+<div class="p-sm glass-panel rounded bg-surface/80 border-white/20">
+<pre class="font-code-md text-[10px] text-primary-fixed-dim">query(db).format('PDF').send()</pre>
+</div>
+</div>
+</div>
+<div class="p-md flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline-sm text-on-surface font-bold mb-xs">Report Gen</h4>
+<p class="text-body-sm text-on-surface-variant/80 line-clamp-2">Automated PDF/Excel report generation from SQL queries with scheduling support.</p>
+</div>
+<div class="mt-md flex items-center justify-between">
+<div class="flex gap-2">
+<span class="text-[10px] px-2 py-0.5 rounded border border-white/10 text-on-surface-variant font-label-caps">DATA</span>
+<span class="text-[10px] px-2 py-0.5 rounded border border-error/30 text-error font-label-caps">BETA</span>
+</div>
+<button class="w-8 h-8 rounded-full glass-panel flex items-center justify-center hover:bg-primary-container hover:text-on-primary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Template Card 3: API Poller -->
+<div class="glass-panel rounded-xl overflow-hidden group hover:border-tertiary-container/40 transition-all duration-300 flex flex-col">
+<div class="relative h-40 bg-surface-container-lowest/50 overflow-hidden">
+<div class="absolute inset-0 opacity-20 group-hover:scale-110 transition-transform duration-700" data-alt="A digital representation of interconnected nodes and pulse waves, signaling constant network activity and API communication. The color scheme features glowing emerald green and deep indigo, with a slight blur to simulate depth of field in a high-tech monitoring station environment." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA8JJRNVl1KEjWrTlS5c5YCcISpfPdeAazc4H4gQS7NJDRHvQ_Vhkkmk20hRmo5GEqunLx1XzQnOE2BmYiH6Mk_foLZTLEckLABMchwr8C5kFol5_EDprw1enk9sG3XGGpbJcOWK99OmoU4X1XhEnC3Q-p12ip3utaNlycBCKzp1hqLrHfRDZe-k8byKpQIFHSFX_63YdJQhmldWZM-7pOie61EzaHuXGDETKGlADAxkIjyXBgK01XVVelY3nz6Z6UplEQM9fYu5VBQ')"></div>
+<div class="absolute inset-0 p-md flex flex-col justify-end">
+<div class="p-sm glass-panel rounded bg-surface/80 border-white/20">
+<pre class="font-code-md text-[10px] text-tertiary-fixed">while(true) { get(url); sleep(5s) }</pre>
+</div>
+</div>
+</div>
+<div class="p-md flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline-sm text-on-surface font-bold mb-xs">API Poller</h4>
+<p class="text-body-sm text-on-surface-variant/80 line-clamp-2">High-frequency REST API monitoring with custom webhook alerts for status changes.</p>
+</div>
+<div class="mt-md flex items-center justify-between">
+<div class="flex gap-2">
+<span class="text-[10px] px-2 py-0.5 rounded border border-white/10 text-on-surface-variant font-label-caps">NETWORK</span>
+</div>
+<button class="w-8 h-8 rounded-full glass-panel flex items-center justify-center hover:bg-primary-container hover:text-on-primary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Template Card 4: Web Scraper -->
+<div class="glass-panel rounded-xl overflow-hidden group hover:border-white/40 transition-all duration-300 flex flex-col">
+<div class="relative h-40 bg-surface-container-lowest/50 overflow-hidden">
+<div class="absolute inset-0 opacity-20 group-hover:scale-110 transition-transform duration-700" data-alt="A conceptual visualization of a digital spider web made of gold and silver data strands, capturing small blocks of information. The lighting is ethereal and sharp, symbolizing precision data extraction in a dark, atmospheric cyberspace setting with a focus on luxury tech aesthetics." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAqzrSzXi-stnevWbkgVJbfkKF-hFJzMdtKp8dtmkRiO8PHlVjSXnprjYDorWCdaHhZozy2lN_rPS2mSymi8-igO20Cw2iMneKLIx_gWQ6sZ_JaMb6slcprUf-Pn0mnQMp1PPMo6oP7GFhgkUNGIrYIoE8ixg2x39Ug69AqaCAuKHKt64gK5yb5JoSiIXZEHjjqWRcLgx4qhBn3uVfUVcWQYVVcq8h6XMKLZw7N10-5zPO6POHlkIj1g6uMhX-WRtmX_Wv7EcOv0Xql')"></div>
+<div class="absolute inset-0 p-md flex flex-col justify-end">
+<div class="p-sm glass-panel rounded bg-surface/80 border-white/20">
+<pre class="font-code-md text-[10px] text-secondary">scrape("url").extract("title")</pre>
+</div>
+</div>
+</div>
+<div class="p-md flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline-sm text-on-surface font-bold mb-xs">Web Scraper</h4>
+<p class="text-body-sm text-on-surface-variant/80 line-clamp-2">Headless browser automation for complex dynamic site data extraction.</p>
+</div>
+<div class="mt-md flex items-center justify-between">
+<div class="flex gap-2">
+<span class="text-[10px] px-2 py-0.5 rounded border border-white/10 text-on-surface-variant font-label-caps">EXTRACT</span>
+</div>
+<button class="w-8 h-8 rounded-full glass-panel flex items-center justify-center hover:bg-primary-container hover:text-on-primary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Template Card 5: Log Parser -->
+<div class="glass-panel rounded-xl overflow-hidden group hover:border-primary-container/40 transition-all duration-300 flex flex-col">
+<div class="relative h-40 bg-surface-container-lowest/50 overflow-hidden">
+<div class="absolute inset-0 opacity-20 group-hover:scale-110 transition-transform duration-700" data-alt="An artistic rendering of vertical columns of alphanumeric code glowing in various shades of blue and white. The depth of field is shallow, creating a bokeh effect with floating digital particles, evoking a sense of deep analysis and pattern recognition in a futuristic command center." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA97xNdbTKM6zqQaywGOUDy8OnXl3pcVsNkvmnBKNQNzFl-TkcGcDcJxRbv5cEE4c_Y-QvUKXvG2W2FHH2cEEcz90ZX5h2YfbCOyQ0bc2q_BROrrQVNs2dSH_XxIlEM4k_9Am3euLDDpgHQgxTDVXl6q55LiqcIQ5ZQurv1anu5Iha-wy62Uj8u-zC1zt5XdBnPEb4qoMWtozakyKVtcn5L2YTZUQG6aMZjEH6zHTB-u3J0uYEEwKqBmeMMWE5mJu1F7f4cxuztOqB2')"></div>
+<div class="absolute inset-0 p-md flex flex-col justify-end">
+<div class="p-sm glass-panel rounded bg-surface/80 border-white/20">
+<pre class="font-code-md text-[10px] text-on-primary-container">parse(log).grep("error").alert()</pre>
+</div>
+</div>
+</div>
+<div class="p-md flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline-sm text-on-surface font-bold mb-xs">Log Parser</h4>
+<p class="text-body-sm text-on-surface-variant/80 line-clamp-2">Real-time log stream processing with regex-based pattern matching and anomaly detection.</p>
+</div>
+<div class="mt-md flex items-center justify-between">
+<div class="flex gap-2">
+<span class="text-[10px] px-2 py-0.5 rounded border border-white/10 text-on-surface-variant font-label-caps">DEVOPS</span>
+</div>
+<button class="w-8 h-8 rounded-full glass-panel flex items-center justify-center hover:bg-primary-container hover:text-on-primary-fixed transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Sidebar (NavigationDrawer Logic) -->
+<div class="hidden xl:flex w-80 glass-panel rounded-xl flex-col p-md bg-surface-container-low/80 backdrop-blur-lg">
+<div class="flex items-center gap-sm mb-lg">
+<span class="material-symbols-outlined text-tertiary-fixed" data-icon="hub">hub</span>
+<div>
+<h5 class="font-label-caps text-label-caps text-tertiary-fixed">Automation Jobs</h5>
+<p class="text-[10px] text-on-surface-variant">Real-time Orchestration</p>
+</div>
+</div>
+<div class="space-y-4">
+<div class="p-sm rounded-lg bg-tertiary-container/10 border border-tertiary-container/20 group cursor-pointer transition-all hover:bg-tertiary-container/20">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-caps text-[10px] text-tertiary-fixed font-bold">SCHEDULER</span>
+<span class="material-symbols-outlined text-[16px] text-tertiary-fixed" data-icon="schedule">schedule</span>
+</div>
+<p class="text-body-sm font-medium">Daily Sync Task</p>
+<p class="text-[10px] text-on-surface-variant">Next run in 2h 45m</p>
+</div>
+<div class="p-sm rounded-lg hover:bg-white/5 border border-transparent group cursor-pointer transition-all">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-caps text-[10px] text-on-surface-variant">ACTIVE JOBS</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" data-icon="play_arrow">play_arrow</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+<p class="text-body-sm">API Health Monitor</p>
+</div>
+</div>
+<div class="p-sm rounded-lg hover:bg-white/5 border border-transparent group cursor-pointer transition-all">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label-caps text-[10px] text-on-surface-variant">HISTORY</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" data-icon="history">history</span>
+</div>
+<p class="text-body-sm">Report Generation</p>
+<p class="text-[10px] text-on-surface-variant">Completed 12m ago</p>
+</div>
+</div>
+<div class="mt-auto p-md glass-panel rounded-lg border-white/5 text-center">
+<span class="material-symbols-outlined text-primary-container text-[32px] mb-2" data-icon="help_outline">help_outline</span>
+<p class="text-body-sm font-bold">Need assistance?</p>
+<p class="text-[10px] text-on-surface-variant mb-4">Our DSL documentation has everything you need.</p>
+<button class="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-body-sm font-medium transition-colors">View Docs</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Mouse Trail Effect -->
+<div class="liquid-glow" id="glow"></div>
+<script>
+        // Micro-interaction: Mouse following glow
+        const glow = document.getElementById('glow');
+        window.addEventListener('mousemove', (e) => {
+            glow.style.left = (e.clientX - 150) + 'px';
+            glow.style.top = (e.clientY - 150) + 'px';
+        });
+
+        // Add subtle scale animation to cards on hover
+        document.querySelectorAll('.glass-panel').forEach(panel => {
+            panel.addEventListener('mouseenter', () => {
+                panel.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            });
+        });
+    </script>
+</body></html>
