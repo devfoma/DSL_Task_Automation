@@ -12,7 +12,7 @@ export default function LandingPage() {
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [selectedDemo, setSelectedDemo] = useState<string>('ping');
   const [isDemoRunning, setIsDemoRunning] = useState<boolean>(false);
-  const logsEndRef = useRef<HTMLDivElement | null>(null);
+  const consoleContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Auth modal states
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
@@ -77,7 +77,9 @@ log "Maintenance completed. Resuming standard tasks."`
   };
 
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (consoleContainerRef.current) {
+      consoleContainerRef.current.scrollTop = consoleContainerRef.current.scrollHeight;
+    }
   }, [logs]);
 
   const runDemo = async (scriptKey: string) => {
@@ -181,7 +183,7 @@ log "Maintenance completed. Resuming standard tasks."`
       <header className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-lg z-10 sticky top-0">
         <div className="flex items-center gap-md">
           <img src="/logo.png" alt="DSL Task Automator Logo" className="h-10 w-auto object-contain" />
-          <span className="font-display font-bold text-headline-sm tracking-tight text-white">
+          <span className="hidden sm:inline font-display font-bold text-headline-sm tracking-tight text-white">
             DSL Task Automator
           </span>
         </div>
@@ -206,23 +208,23 @@ log "Maintenance completed. Resuming standard tasks."`
         
         {/* Hero section */}
         <section className="text-center flex flex-col items-center gap-md max-w-3xl mx-auto">
-          <h1 className="font-display font-black text-white text-4xl md:text-5xl tracking-tight leading-tight">
+          <h1 className="font-display font-black text-white text-3xl sm:text-4xl md:text-5xl tracking-tight leading-tight">
             Automate Workflows using the <span className="text-primary-container">Domain-Specific Language (DSL) Task Automator</span>
           </h1>
-          <p className="text-on-surface-variant text-lg max-w-3xl leading-relaxed text-center">
+          <p className="text-on-surface-variant text-base sm:text-lg max-w-3xl leading-relaxed text-center">
             Write clean, plain-text commands to schedule file tasks, sync logs, and run HTTP hooks. No complex scripting required—just direct task instructions compiled in real-time.
           </p>
           <div className="flex gap-md mt-sm">
             <Link
               href="/dashboard"
               onClick={handleLaunchDashboard}
-              className="flex items-center gap-sm bg-primary-container text-on-primary-container px-xl py-3 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95"
+              className="flex items-center gap-sm bg-primary-container text-on-primary-container px-xl py-3 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95 text-sm"
             >
               Launch Dashboard
             </Link>
             <button
               onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }}
-              className="px-xl py-3 rounded-full font-bold border border-white/10 hover:bg-white/5 text-white transition-all active:scale-95 cursor-pointer"
+              className="px-xl py-3 rounded-full font-bold border border-white/10 hover:bg-white/5 text-white transition-all active:scale-95 text-sm cursor-pointer"
             >
               Create Account
             </button>
@@ -258,7 +260,7 @@ log "Maintenance completed. Resuming standard tasks."`
           </div>
 
           {/* Code sandbox visualizer column */}
-          <div className="lg:col-span-7 glass-panel rounded-2xl flex flex-col overflow-hidden h-96 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <div className="lg:col-span-7 glass-panel rounded-2xl flex flex-col overflow-hidden h-[500px] sm:h-96 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
             {/* Top header bar */}
             <div className="p-md bg-surface-container-high/50 border-b border-white/5 flex items-center justify-between flex-shrink-0">
               <div className="flex gap-1.5">
@@ -270,17 +272,20 @@ log "Maintenance completed. Resuming standard tasks."`
             </div>
 
             {/* Editor preview */}
-            <div className="flex-1 flex overflow-hidden">
-              <pre className="flex-1 bg-surface-container-lowest/30 p-md font-mono text-xs text-on-surface/90 overflow-y-auto leading-relaxed border-r border-white/5 select-text">
+            <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
+              <pre className="flex-1 bg-surface-container-lowest/30 p-md font-mono text-xs text-on-surface/90 overflow-y-auto leading-relaxed border-b sm:border-b-0 sm:border-r border-white/5 select-text">
                 <code>{DEMO_SCRIPTS[selectedDemo].code}</code>
               </pre>
 
               {/* Console log outputs */}
-              <div className="w-72 flex flex-col bg-black/35 overflow-hidden">
+              <div className="w-full sm:w-72 h-40 sm:h-auto flex flex-col bg-black/35 overflow-hidden">
                 <div className="p-sm bg-surface-container/50 border-b border-white/5 text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">
                   Live Console
                 </div>
-                <div className="flex-1 p-sm overflow-y-auto font-mono text-[10px] space-y-1.5">
+                <div 
+                  ref={consoleContainerRef}
+                  className="flex-1 p-sm overflow-y-auto font-mono text-[10px] space-y-1.5"
+                >
                   {logs.length === 0 ? (
                     <span className="text-outline italic">Sandbox idle. Click any task preset to run.</span>
                   ) : (
@@ -297,7 +302,6 @@ log "Maintenance completed. Resuming standard tasks."`
                       </div>
                     ))
                   )}
-                  <div ref={logsEndRef} />
                 </div>
               </div>
             </div>

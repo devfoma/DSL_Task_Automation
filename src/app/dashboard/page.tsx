@@ -80,7 +80,7 @@ export default function Home() {
 
   // Interval references for active scheduler tasks
   const scheduleIntervals = useRef<Record<string, NodeJS.Timeout>>({});
-  const logsEndRef = useRef<HTMLDivElement | null>(null);
+  const consoleContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Load initial files & schedules from Supabase (with LocalStorage fallback)
   useEffect(() => {
@@ -185,7 +185,9 @@ export default function Home() {
 
   // Scroll to bottom of logs
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (consoleContainerRef.current) {
+      consoleContainerRef.current.scrollTop = consoleContainerRef.current.scrollHeight;
+    }
   }, [logs]);
 
   // Clean up all scheduled intervals on unmount
@@ -482,13 +484,16 @@ export default function Home() {
       />
 
       {/* Header bar */}
-      <header className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-lg z-10">
-        <div className="flex items-center gap-md">
-          <img src="/logo.png" alt="DSL Task Automator Logo" className="h-10 w-auto object-contain" />
+      <header className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-md sm:px-lg z-10 flex-shrink-0">
+        <div className="flex items-center gap-sm sm:gap-md">
+          <img src="/logo.png" alt="DSL Task Automator Logo" className="h-8 sm:h-10 w-auto object-contain" />
           <div>
-            <h1 className="font-display font-bold text-headline-sm tracking-tight text-white flex items-center gap-xs">
+            <h1 className="hidden md:flex font-display font-bold text-headline-sm tracking-tight text-white items-center gap-xs">
               DSL Task Automator <span className="text-[10px] uppercase tracking-widest text-primary-fixed px-2 py-0.5 rounded bg-primary-container/10 border border-primary-container/20">IDE</span>
             </h1>
+            <span className="md:hidden font-display font-bold text-white text-sm">
+              IDE
+            </span>
           </div>
           <button 
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -506,10 +511,10 @@ export default function Home() {
         </div>
 
         {/* Center menu */}
-        <nav className="flex gap-sm">
+        <nav className="flex gap-xs sm:gap-sm overflow-x-auto max-w-[45vw] sm:max-w-none scrollbar-none py-1">
           <button
             onClick={() => setActiveTab('editor')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all ${
+            className={`px-2 sm:px-md py-1.5 rounded-full text-[11px] sm:text-body-sm font-medium transition-all ${
               activeTab === 'editor' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
             }`}
           >
@@ -517,7 +522,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setActiveTab('templates')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all ${
+            className={`px-2 sm:px-md py-1.5 rounded-full text-[11px] sm:text-body-sm font-medium transition-all ${
               activeTab === 'templates' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
             }`}
           >
@@ -525,7 +530,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setActiveTab('scheduler')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all relative ${
+            className={`px-2 sm:px-md py-1.5 rounded-full text-[11px] sm:text-body-sm font-medium transition-all relative ${
               activeTab === 'scheduler' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
             }`}
           >
@@ -536,7 +541,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all ${
+            className={`px-2 sm:px-md py-1.5 rounded-full text-[11px] sm:text-body-sm font-medium transition-all ${
               activeTab === 'settings' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
             }`}
           >
@@ -545,23 +550,23 @@ export default function Home() {
         </nav>
 
         {/* Right side buttons */}
-        <div className="flex items-center gap-md">
+        <div className="flex items-center gap-sm sm:gap-md">
           <button
             onClick={handleRunScript}
             disabled={isRunning}
-            className={`flex items-center gap-sm bg-primary-container text-on-primary-container px-lg py-1.5 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`flex items-center gap-1.5 bg-primary-container text-on-primary-container px-3 sm:px-lg py-1.5 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {isRunning ? (
               <>
-                <span className="w-2.5 h-2.5 rounded-full bg-on-primary-container animate-ping" />
-                Running...
+                <span className="w-2 h-2 rounded-full bg-on-primary-container animate-ping" />
+                <span className="hidden sm:inline text-xs">Running...</span>
               </>
             ) : (
               <>
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                Run Task
+                <span className="hidden sm:inline text-xs">Run Task</span>
               </>
             )}
           </button>
@@ -569,10 +574,10 @@ export default function Home() {
       </header>
 
       {/* Main Workspace Workspace */}
-      <div className="flex-1 flex overflow-hidden p-panel-margin gap-panel-margin">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden p-panel-margin gap-panel-margin">
         
         {/* Left Panel: Files Explorer */}
-        <div className={`transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-0 opacity-0 pointer-events-none mr-[-12px]' : 'w-72'} glass-panel rounded-xl flex flex-col z-10 overflow-hidden`}>
+        <div className={`transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-0 h-0 opacity-0 pointer-events-none mr-[-12px]' : 'w-full md:w-72 h-44 md:h-auto mb-2 md:mb-0'} glass-panel rounded-xl flex flex-col z-10 overflow-hidden`}>
           <div className="p-md border-b border-white/5 flex justify-between items-center flex-shrink-0">
             <span className="font-display font-semibold text-xs tracking-wider text-on-surface-variant uppercase">Workspace Files</span>
             <div className="flex items-center gap-xs">
@@ -697,7 +702,7 @@ export default function Home() {
                 </div>
 
                 {/* Live Parser & Syntax Cheat Sheet Sidebar */}
-                <div className="w-80 flex flex-col bg-surface-container-lowest/20 overflow-hidden select-none">
+                <div className="w-full md:w-80 h-48 md:h-auto flex flex-col bg-surface-container-lowest/20 overflow-hidden select-none border-t md:border-t-0 md:border-l border-white/5">
                   {/* Token Highlights Section */}
                   <div className={`flex flex-col overflow-hidden border-b border-white/5 transition-all duration-300 ${showTokens ? 'flex-1' : 'h-11'}`}>
                     <div 
@@ -715,7 +720,7 @@ export default function Home() {
                   </div>
 
                   {/* Cheat Sheet Section */}
-                  <div className={`flex flex-col overflow-hidden bg-black/10 transition-all duration-300 ${showCheatSheet ? 'h-72' : 'h-11'}`}>
+                  <div className={`flex flex-col overflow-hidden bg-black/10 transition-all duration-300 ${showCheatSheet ? 'h-72 md:h-80' : 'h-11'}`}>
                     <div 
                       onClick={() => setShowCheatSheet(!showCheatSheet)}
                       className="p-md bg-surface-container/50 border-b border-white/5 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors"
@@ -1004,7 +1009,10 @@ export default function Home() {
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-md font-mono text-xs space-y-2 bg-black/45">
+            <div 
+              ref={consoleContainerRef}
+              className="flex-1 overflow-y-auto p-md font-mono text-xs space-y-2 bg-black/45"
+            >
               {logs.length === 0 ? (
                 <span className="text-outline italic">Console idle. Hit &apos;Run Task&apos; or wait for scheduled trigger updates.</span>
               ) : (
@@ -1023,7 +1031,6 @@ export default function Home() {
                   </div>
                 ))
               )}
-              <div ref={logsEndRef} />
             </div>
           </div>
 
