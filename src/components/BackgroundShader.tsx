@@ -26,7 +26,7 @@ export default function BackgroundShader() {
     }
     syncSize();
 
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
     if (!gl) return;
 
     const vs = `
@@ -83,16 +83,18 @@ export default function BackgroundShader() {
       }
     `;
 
+    const glCtx = gl;
+
     function cs(type: number, src: string) {
-      const s = gl.createShader(type);
+      const s = glCtx.createShader(type);
       if (!s) return null;
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
+      glCtx.shaderSource(s, src);
+      glCtx.compileShader(s);
       return s;
     }
 
-    const vsShader = cs(gl.VERTEX_SHADER, vs);
-    const fsShader = cs(gl.FRAGMENT_SHADER, fs);
+    const vsShader = cs(glCtx.VERTEX_SHADER, vs);
+    const fsShader = cs(glCtx.FRAGMENT_SHADER, fs);
     if (!vsShader || !fsShader) return;
 
     const prog = gl.createProgram();

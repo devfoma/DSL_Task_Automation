@@ -1,784 +1,486 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import BackgroundShader from '@/components/BackgroundShader';
-import ThreeVisualizer from '@/components/ThreeVisualizer';
-import { DSLInterpreter, LogMessage, ScheduledTask } from '@/lib/interpreter';
+import { DSLInterpreter, LogMessage } from '@/lib/interpreter';
+import { supabase } from '@/lib/supabase';
 
-// Default files structure
-const DEFAULT_FILES: Record<string, string> = {
-  'api_monitor.lscript': `# API Monitoring & File generation
-log "Starting health check automation..."
-http get "https://jsonplaceholder.typicode.com/todos/1"
-create file "server_status.json" with content "{\\"status\\":\\"active\\",\\"checkedAt\\":\\"now\\"}"
-log "Health check complete. Log saved to server_status.json"
-`,
-  'db_cleanup.lscript': `# Cleanup temporary log files
-log "Scanning virtual workspace for old logs..."
-create file "temp_log.txt" with content "temporary log content"
-read file "temp_log.txt"
-delete file "temp_log.txt"
-log "Workspace cleanup successfully finished."
-`,
-  'scheduled_alert.lscript': `# Scheduled health check
-every 10 seconds do {
-  log "Performing automated ping test..."
-  http get "https://jsonplaceholder.typicode.com/posts/1"
-}
-`
-};
-
-export default function Home() {
-  // State variables
-  const [files, setFiles] = useState<Record<string, string>>({});
-  const [selectedFile, setSelectedFile] = useState<string>('api_monitor.lscript');
-  const [editorContent, setEditorContent] = useState<string>('');
+export default function LandingPage() {
+  const router = useRouter();
   const [logs, setLogs] = useState<LogMessage[]>([]);
-  const [schedules, setSchedules] = useState<ScheduledTask[]>([]);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'editor' | 'templates' | 'scheduler' | 'settings'>('editor');
-  
-  // Customization options
-  const [backgroundType, setBackgroundType] = useState<'shader' | 'three' | 'none'>('shader');
-  const [bgOpacity, setBgOpacity] = useState<number>(30);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [newFileName, setNewFileName] = useState<string>('');
-  const [showNewFileModal, setShowNewFileModal] = useState<boolean>(false);
-
-  // Interval references for active scheduler tasks
-  const scheduleIntervals = useRef<Record<string, NodeJS.Timeout>>({});
+  const [selectedDemo, setSelectedDemo] = useState<string>('ping');
+  const [isDemoRunning, setIsDemoRunning] = useState<boolean>(false);
   const logsEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Load from local storage
-  useEffect(() => {
-    const savedFiles = localStorage.getItem('lscript_files');
-    const savedSchedules = localStorage.getItem('lscript_schedules');
-    
-    if (savedFiles) {
-      const parsedFiles = JSON.parse(savedFiles);
-      setFiles(parsedFiles);
-      if (parsedFiles[selectedFile]) {
-        setEditorContent(parsedFiles[selectedFile]);
-      }
-    } else {
-      setFiles(DEFAULT_FILES);
-      localStorage.setItem('lscript_files', JSON.stringify(DEFAULT_FILES));
-      setEditorContent(DEFAULT_FILES[selectedFile]);
-    }
+  // Auth modal states
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [authError, setAuthError] = useState<string>('');
+  const [authInfo, setAuthInfo] = useState<string>('');
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [session, setSession] = useState<any>(null);
 
-    if (savedSchedules) {
-      const parsedSchedules = JSON.parse(savedSchedules);
-      setSchedules(parsedSchedules);
-      // Restart active schedules
-      parsedSchedules.forEach((task: ScheduledTask) => {
-        if (task.isActive) {
-          startTaskInterval(task);
-        }
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
       });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+      });
+
+      return () => subscription.unsubscribe();
     }
   }, []);
 
-  // Sync editor content when selected file changes
-  useEffect(() => {
-    if (files[selectedFile] !== undefined) {
-      setEditorContent(files[selectedFile]);
+  const handleLaunchDashboard = (e: React.MouseEvent) => {
+    if (!session) {
+      e.preventDefault();
+      setAuthMode('login');
+      setAuthError('Please sign in or create an account to access the dashboard.');
+      setShowAuthModal(true);
     }
-  }, [selectedFile, files]);
+  };
 
-  // Scroll to bottom of logs
+  const DEMO_SCRIPTS: Record<string, { title: string; desc: string; code: string }> = {
+    ping: {
+      title: 'API Health Ping',
+      desc: 'Polls external REST APIs and logs responses.',
+      code: `# Poll API health
+log "Initializing server checks..."
+http get "https://jsonplaceholder.typicode.com/todos/1"
+log "API status: operational."`
+    },
+    files: {
+      title: 'Log Sync File',
+      desc: 'Creates a simulated backup report file.',
+      code: `# Sync and write report
+log "Beginning sync routine..."
+create file "system_report.json" with content "{\\"status\\":\\"healthy\\"}"
+read file "system_report.json"
+log "Report successfully generated."`
+    },
+    wait: {
+      title: 'Sleep Execution',
+      desc: 'Pauses task execution pipelines.',
+      code: `# Delay process pipeline
+log "Entering maintenance mode..."
+sleep 2 seconds
+log "Maintenance completed. Resuming standard tasks."`
+    }
+  };
+
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // Clean up all scheduled intervals on unmount
-  useEffect(() => {
-    return () => {
-      Object.values(scheduleIntervals.current).forEach(clearInterval);
-    };
-  }, []);
+  const runDemo = async (scriptKey: string) => {
+    if (isDemoRunning) return;
+    setIsDemoRunning(true);
+    setSelectedDemo(scriptKey);
+    setLogs([]);
 
-  const saveFilesToLocal = (newFiles: Record<string, string>) => {
-    setFiles(newFiles);
-    localStorage.setItem('lscript_files', JSON.stringify(newFiles));
-  };
+    const interpreter = new DSLInterpreter(
+      {}, // Empty virtual file system for sandbox demo
+      (logMsg) => setLogs((prev) => [...prev, logMsg]),
+      () => {},
+      () => {}
+    );
 
-  const saveSchedulesToLocal = (newSchedules: ScheduledTask[]) => {
-    setSchedules(newSchedules);
-    localStorage.setItem('lscript_schedules', JSON.stringify(newSchedules));
-  };
-
-  // Add a log message
-  const addLog = (type: LogMessage['type'], message: string) => {
-    const newLog: LogMessage = {
-      id: Math.random().toString(36).substring(7),
-      timestamp: new Date().toLocaleTimeString(),
-      type,
-      message,
-    };
-    setLogs((prev) => [...prev, newLog]);
-  };
-
-  // Update current file content in workspace
-  const handleEditorChange = (val: string) => {
-    setEditorContent(val);
-    const updated = { ...files, [selectedFile]: val };
-    saveFilesToLocal(updated);
-  };
-
-  // Handle schedule task execution
-  const startTaskInterval = (task: ScheduledTask) => {
-    // Clear existing if any
-    if (scheduleIntervals.current[task.id]) {
-      clearInterval(scheduleIntervals.current[task.id]);
-    }
-
-    const intervalId = setInterval(() => {
-      // Run the code block inside interpreter
-      const interpreter = new DSLInterpreter(
-        files,
-        (logMsg) => setLogs((prev) => [...prev, logMsg]),
-        (updatedFiles) => saveFilesToLocal(updatedFiles),
-        () => {} // No nested schedules
-      );
-      
+    try {
+      await interpreter.run(DEMO_SCRIPTS[scriptKey].code);
+    } catch (err: any) {
       setLogs((prev) => [
         ...prev,
         {
           id: Math.random().toString(36).substring(7),
           timestamp: new Date().toLocaleTimeString(),
-          type: 'info',
-          message: `[Trigger] Running scheduled task: "${task.name}"`,
-        },
+          type: 'error',
+          message: err.message || 'Error occurred.'
+        }
       ]);
-      
-      interpreter.run(task.code);
-
-      // Update last run time
-      setSchedules((prev) =>
-        prev.map((t) => {
-          if (t.id === task.id) {
-            const now = new Date().toLocaleTimeString();
-            const next = new Date(Date.now() + task.interval * 1000).toLocaleTimeString();
-            return { ...t, lastRun: now, nextRun: next };
-          }
-          return t;
-        })
-      );
-    }, task.interval * 1000);
-
-    scheduleIntervals.current[task.id] = intervalId;
-  };
-
-  const stopTaskInterval = (taskId: string) => {
-    if (scheduleIntervals.current[taskId]) {
-      clearInterval(scheduleIntervals.current[taskId]);
-      delete scheduleIntervals.current[taskId];
+    } finally {
+      setIsDemoRunning(false);
     }
   };
 
-  // Run the full current script
-  const handleRunScript = async () => {
-    if (isRunning) return;
-    setIsRunning(true);
-    addLog('info', `Initializing execution of "${selectedFile}"...`);
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthInfo('');
+    setAuthLoading(true);
 
-    const interpreter = new DSLInterpreter(
-      files,
-      (logMsg) => setLogs((prev) => [...prev, logMsg]),
-      (updatedFiles) => saveFilesToLocal(updatedFiles),
-      (schedTask) => {
-        // Register new schedule
-        const newSched: ScheduledTask = {
-          id: Math.random().toString(36).substring(7),
-          name: schedTask.name,
-          interval: schedTask.interval,
-          code: schedTask.code,
-          isActive: true,
-          nextRun: new Date(Date.now() + schedTask.interval * 1000).toLocaleTimeString(),
-        };
-        setSchedules((prev) => {
-          const updated = [...prev, newSched];
-          saveSchedulesToLocal(updated);
-          return updated;
-        });
-        startTaskInterval(newSched);
-      }
-    );
+    if (authMode === 'signup' && password !== confirmPassword) {
+      setAuthError('Passwords do not match.');
+      setAuthLoading(false);
+      return;
+    }
+
+    if (!supabase) {
+      setAuthInfo('Supabase not configured. Simulating profile processing...');
+      setTimeout(() => {
+        setShowAuthModal(false);
+        router.push('/dashboard');
+      }, 1500);
+      return;
+    }
 
     try {
-      await interpreter.run(editorContent);
-      addLog('success', `Finished execution of "${selectedFile}".`);
-    } catch (error: any) {
-      addLog('error', `Execution aborted: ${error.message || error}`);
-    } finally {
-      setIsRunning(false);
-    }
-  };
+      if (authMode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-  // Create virtual file
-  const handleCreateFile = () => {
-    if (!newFileName.trim()) return;
-    const name = newFileName.endsWith('.lscript') ? newFileName.trim() : `${newFileName.trim()}.lscript`;
-    if (name in files) {
-      alert('File already exists.');
-      return;
-    }
-    const updated = { ...files, [name]: '# New Automation script\n' };
-    saveFilesToLocal(updated);
-    setSelectedFile(name);
-    setNewFileName('');
-    setShowNewFileModal(false);
-    addLog('info', `Created file "${name}" in workspace.`);
-  };
-
-  // Delete virtual file
-  const handleDeleteFile = (fileNameToDelete: string) => {
-    if (Object.keys(files).length <= 1) {
-      alert('You must keep at least one file in the workspace.');
-      return;
-    }
-    const updated = { ...files };
-    delete updated[fileNameToDelete];
-    saveFilesToLocal(updated);
-    if (selectedFile === fileNameToDelete) {
-      setSelectedFile(Object.keys(updated)[0]);
-    }
-    addLog('warn', `Deleted file "${fileNameToDelete}" from workspace.`);
-  };
-
-  // Add a preset template
-  const handleAddTemplate = (name: string, content: string) => {
-    const filename = `${name.toLowerCase().replace(/\s+/g, '_')}.lscript`;
-    const updated = { ...files, [filename]: content };
-    saveFilesToLocal(updated);
-    setSelectedFile(filename);
-    setActiveTab('editor');
-    addLog('success', `Imported template "${name}" as "${filename}".`);
-  };
-
-  // Toggle active scheduled task status
-  const handleToggleSchedule = (task: ScheduledTask) => {
-    const updated = schedules.map((t) => {
-      if (t.id === task.id) {
-        const nextActive = !t.isActive;
-        if (nextActive) {
-          startTaskInterval({ ...t, isActive: true });
-          addLog('info', `Resumed scheduled job "${t.name}"`);
+        if (error) {
+          setAuthError(error.message);
         } else {
-          stopTaskInterval(t.id);
-          addLog('warn', `Suspended scheduled job "${t.name}"`);
+          setAuthInfo('Login successful! Redirecting...');
+          setTimeout(() => {
+            setShowAuthModal(false);
+            router.push('/dashboard');
+          }, 1000);
         }
-        return { ...t, isActive: nextActive };
-      }
-      return t;
-    });
-    saveSchedulesToLocal(updated);
-  };
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
 
-  // Remove scheduled task completely
-  const handleRemoveSchedule = (taskId: string) => {
-    stopTaskInterval(taskId);
-    const updated = schedules.filter((t) => t.id !== taskId);
-    saveSchedulesToLocal(updated);
-    addLog('warn', `Removed task schedule.`);
-  };
-
-  // Helper to color highlight words in the simple preview
-  const renderHighlightedCode = () => {
-    const keywords = ['create', 'file', 'with', 'content', 'read', 'append', 'delete', 'log', 'every', 'seconds', 'do', 'wait', 'sleep', 'http', 'get', 'post'];
-    return editorContent.split('\n').map((line, idx) => {
-      if (line.trim().startsWith('#') || line.trim().startsWith('//')) {
-        return <div key={idx} className="text-outline italic">{line}</div>;
+        if (error) {
+          setAuthError(error.message);
+        } else {
+          setAuthInfo('Account created! Loading login tab...');
+          setTimeout(() => {
+            setAuthMode('login');
+            setPassword('');
+            setConfirmPassword('');
+            setAuthInfo('');
+          }, 2000);
+        }
       }
-      // Simple coloring
-      let elements: React.ReactNode[] = [line];
-      return (
-        <div key={idx} className="font-mono text-on-surface">
-          {line.split(/(\s+)/).map((word, wIdx) => {
-            const cleanWord = word.toLowerCase().trim();
-            if (keywords.includes(cleanWord)) {
-              return <span key={wIdx} className="text-primary-container font-semibold">{word}</span>;
-            }
-            if (word.startsWith('"') && word.endsWith('"')) {
-              return <span key={wIdx} className="text-tertiary-fixed-dim">{word}</span>;
-            }
-            return <span key={wIdx}>{word}</span>;
-          })}
-        </div>
-      );
-    });
+    } catch (err: any) {
+      setAuthError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background overflow-hidden relative select-none">
-      
-      {/* Background Graphic elements */}
-      {backgroundType === 'shader' && <BackgroundShader />}
-      {backgroundType === 'three' && <ThreeVisualizer />}
-      <div 
-        className="absolute inset-0 bg-background -z-10 pointer-events-none transition-opacity duration-300"
-        style={{ opacity: 1 - bgOpacity / 100 }}
-      />
+    <div className="flex flex-col min-h-screen bg-background text-on-background font-sans relative overflow-hidden select-none">
+      {/* Liquid WebGL Background Shader */}
+      <BackgroundShader />
 
-      {/* Header bar */}
-      <header className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-lg z-10">
+      {/* Glassmorphic navigation header */}
+      <header className="h-16 border-b border-white/10 glass-panel flex items-center justify-between px-lg z-10 sticky top-0">
         <div className="flex items-center gap-md">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary-container to-secondary-container flex items-center justify-center shadow-[0_0_15px_rgba(0,242,254,0.3)]">
-            <span className="text-on-primary-fixed font-black text-sm">LG</span>
-          </div>
-          <div>
-            <h1 className="font-display font-bold text-headline-sm tracking-tight text-white flex items-center gap-xs">
-              Liquid Glass <span className="text-[10px] uppercase tracking-widest text-primary-fixed px-2 py-0.5 rounded bg-primary-container/10 border border-primary-container/20">IDE</span>
-            </h1>
-          </div>
+          <img src="/logo.png" alt="DSL Task Automator Logo" className="h-10 w-auto object-contain" />
+          <span className="font-display font-bold text-headline-sm tracking-tight text-white">
+            DSL Task Automator
+          </span>
         </div>
-
-        {/* Center menu */}
-        <nav className="flex gap-sm">
-          <button
-            onClick={() => setActiveTab('editor')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all ${
-              activeTab === 'editor' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
-            }`}
-          >
-            Workspace
-          </button>
-          <button
-            onClick={() => setActiveTab('templates')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all ${
-              activeTab === 'templates' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
-            }`}
-          >
-            Templates
-          </button>
-          <button
-            onClick={() => setActiveTab('scheduler')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all relative ${
-              activeTab === 'scheduler' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
-            }`}
-          >
-            Scheduler
-            {schedules.filter(t => t.isActive).length > 0 && (
-              <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-tertiary-fixed animate-ping" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-md py-1.5 rounded-full text-body-sm font-medium transition-all ${
-              activeTab === 'settings' ? 'bg-white/10 text-white border border-white/20' : 'text-on-surface-variant hover:text-white'
-            }`}
-          >
-            Settings
-          </button>
-        </nav>
-
-        {/* Right side buttons */}
         <div className="flex items-center gap-md">
           <button
-            onClick={handleRunScript}
-            disabled={isRunning}
-            className={`flex items-center gap-sm bg-primary-container text-on-primary-container px-lg py-1.5 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}
+            onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}
+            className="text-on-surface-variant hover:text-white text-sm font-medium transition-colors cursor-pointer"
           >
-            {isRunning ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-on-primary-container animate-ping" />
-                Running...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Run Task
-              </>
-            )}
+            Sign In
+          </button>
+          <button
+            onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }}
+            className="flex items-center gap-sm bg-primary-container text-on-primary-container px-lg py-1.5 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95 text-sm cursor-pointer"
+          >
+            Get Started
           </button>
         </div>
       </header>
 
-      {/* Main Workspace Workspace */}
-      <div className="flex-1 flex overflow-hidden p-panel-margin gap-panel-margin">
+      {/* Main hero & showcase */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-lg py-xl flex flex-col gap-xl justify-center z-10">
         
-        {/* Left Panel: Files Explorer */}
-        <div className="w-72 glass-panel rounded-xl flex flex-col z-10">
-          <div className="p-md border-b border-white/5 flex justify-between items-center">
-            <span className="font-display font-semibold text-xs tracking-wider text-on-surface-variant uppercase">Workspace Files</span>
-            <button 
-              onClick={() => setShowNewFileModal(true)}
-              className="p-1 hover:bg-white/5 rounded-full text-on-surface-variant hover:text-white transition-colors"
-              title="New Script"
+        {/* Hero section */}
+        <section className="text-center flex flex-col items-center gap-md max-w-3xl mx-auto">
+          <h1 className="font-display font-black text-white text-4xl md:text-5xl tracking-tight leading-tight">
+            Automate Workflows using the <span className="text-primary-container">Domain-Specific Language (DSL) Task Automator</span>
+          </h1>
+          <p className="text-on-surface-variant text-lg max-w-3xl leading-relaxed text-center">
+            Write clean, plain-text commands to schedule file tasks, sync logs, and run HTTP hooks. No complex scripting required—just direct task instructions compiled in real-time.
+          </p>
+          <div className="flex gap-md mt-sm">
+            <Link
+              href="/dashboard"
+              onClick={handleLaunchDashboard}
+              className="flex items-center gap-sm bg-primary-container text-on-primary-container px-xl py-3 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95"
             >
-              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-              </svg>
+              Launch Dashboard
+            </Link>
+            <button
+              onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }}
+              className="px-xl py-3 rounded-full font-bold border border-white/10 hover:bg-white/5 text-white transition-all active:scale-95 cursor-pointer"
+            >
+              Create Account
             </button>
           </div>
+        </section>
 
-          {/* New file modal inside sidebar */}
-          {showNewFileModal && (
-            <div className="p-md border-b border-white/5 bg-white/5 flex flex-col gap-2">
-              <input
-                type="text"
-                value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
-                placeholder="filename.lscript"
-                className="w-full bg-surface-container-lowest/80 border border-white/10 rounded px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary-container"
-              />
-              <div className="flex gap-2 justify-end">
-                <button 
-                  onClick={() => setShowNewFileModal(false)}
-                  className="px-2 py-1 text-[10px] rounded hover:bg-white/5 text-on-surface-variant"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleCreateFile}
-                  className="px-2 py-1 text-[10px] rounded bg-primary-container text-on-primary-container font-semibold"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Files List */}
-          <div className="flex-1 overflow-y-auto p-sm space-y-1">
-            {Object.keys(files).map((fileName) => (
-              <div
-                key={fileName}
-                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer group transition-all ${
-                  selectedFile === fileName
-                    ? 'bg-primary-container/10 border border-primary-container/20 text-primary-fixed'
-                    : 'text-on-surface/75 hover:bg-white/5 hover:text-white'
-                }`}
-                onClick={() => setSelectedFile(fileName)}
-              >
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                  </svg>
-                  <span className="text-body-sm truncate">{fileName}</span>
-                </div>
+        {/* Live Simulator & Sandbox Playground */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-stretch mt-lg">
+          {/* Features description column */}
+          <div className="lg:col-span-5 flex flex-col justify-center gap-md pr-sm">
+            <span className="text-xs uppercase font-bold text-tertiary-fixed tracking-widest">Interactive Sandbox</span>
+            <h2 className="font-display font-bold text-3xl text-white">Execute custom scripts instantly</h2>
+            <p className="text-on-surface-variant text-sm leading-relaxed">
+              Test out the automation DSL directly on the right. Select one of the preset automation models and watch the compiler run tasks line-by-line.
+            </p>
+            <div className="flex flex-col gap-sm mt-xs">
+              {Object.entries(DEMO_SCRIPTS).map(([key, data]) => (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteFile(fileName);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 hover:text-error transition-all p-0.5 rounded"
-                  title="Delete File"
+                  key={key}
+                  onClick={() => runDemo(key)}
+                  disabled={isDemoRunning}
+                  className={`p-md rounded-xl border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                    selectedDemo === key
+                      ? 'bg-primary-container/10 border-primary-container/30 text-white'
+                      : 'bg-white/2 border-white/5 text-on-surface-variant hover:bg-white/5 hover:border-white/10'
+                  }`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
+                  <span className="font-display font-semibold text-xs text-white">{data.title}</span>
+                  <span className="text-[11px] text-outline leading-tight">{data.desc}</span>
                 </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* Virtual File System Preview stats */}
-          <div className="p-md border-t border-white/5 bg-surface-container-lowest/50 text-[10px] text-on-surface-variant flex flex-col gap-1">
-            <span className="uppercase tracking-wider font-semibold">Virtual Storage status</span>
-            <div className="flex justify-between">
-              <span>Total Files:</span>
-              <span className="text-white font-mono">{Object.keys(files).length}</span>
+          {/* Code sandbox visualizer column */}
+          <div className="lg:col-span-7 glass-panel rounded-2xl flex flex-col overflow-hidden h-96 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            {/* Top header bar */}
+            <div className="p-md bg-surface-container-high/50 border-b border-white/5 flex items-center justify-between flex-shrink-0">
+              <div className="flex gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-error" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span className="w-2.5 h-2.5 rounded-full bg-tertiary" />
+              </div>
+              <span className="text-[10px] text-on-surface-variant font-mono">sandbox_demo.lscript</span>
             </div>
-            <div className="flex justify-between">
-              <span>Schedules Running:</span>
-              <span className="text-tertiary-fixed font-mono">{schedules.filter(t => t.isActive).length}</span>
+
+            {/* Editor preview */}
+            <div className="flex-1 flex overflow-hidden">
+              <pre className="flex-1 bg-surface-container-lowest/30 p-md font-mono text-xs text-on-surface/90 overflow-y-auto leading-relaxed border-r border-white/5 select-text">
+                <code>{DEMO_SCRIPTS[selectedDemo].code}</code>
+              </pre>
+
+              {/* Console log outputs */}
+              <div className="w-72 flex flex-col bg-black/35 overflow-hidden">
+                <div className="p-sm bg-surface-container/50 border-b border-white/5 text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">
+                  Live Console
+                </div>
+                <div className="flex-1 p-sm overflow-y-auto font-mono text-[10px] space-y-1.5">
+                  {logs.length === 0 ? (
+                    <span className="text-outline italic">Sandbox idle. Click any task preset to run.</span>
+                  ) : (
+                    logs.map((log) => (
+                      <div key={log.id} className="flex gap-sm items-start border-b border-white/2.5 pb-0.5">
+                        <span className={`text-[8px] uppercase px-1 rounded ${
+                          log.type === 'success' ? 'bg-tertiary-container/10 text-tertiary-fixed' :
+                          log.type === 'error' ? 'bg-error-container/10 text-error' :
+                          'bg-primary-container/10 text-primary-fixed'
+                        }`}>
+                          {log.type}
+                        </span>
+                        <span className="text-on-surface/90 break-all leading-tight">{log.message}</span>
+                      </div>
+                    ))
+                  )}
+                  <div ref={logsEndRef} />
+                </div>
+              </div>
             </div>
+          </div>
+        </section>
+
+        {/* DSL Automation Examples */}
+        <section className="max-w-2xl mx-auto w-full mt-xl">
+          {/* Examples Panel */}
+          <div className="glass-panel p-lg rounded-2xl border border-white/10 flex flex-col gap-md">
+            <h3 className="font-display font-bold text-xl text-white">Examples of Automation Routines</h3>
+            <p className="text-on-surface-variant text-xs">
+              Review how commands are structured to perform common tasks.
+            </p>
+            <div className="space-y-sm">
+              <div className="bg-black/20 p-sm rounded-lg border border-white/5 font-mono text-[11px] text-on-surface/90">
+                <span className="text-primary-fixed"># Create and read log check</span>
+                <p>create file "status.log" with content "Healthy"</p>
+                <p>read file "status.log"</p>
+              </div>
+              <div className="bg-black/20 p-sm rounded-lg border border-white/5 font-mono text-[11px] text-on-surface/90">
+                <span className="text-primary-fixed"># Sleep and poll health</span>
+                <p>sleep 5 seconds</p>
+                <p>http get "https://api.github.com/users/supabase"</p>
+              </div>
+              <div className="bg-black/20 p-sm rounded-lg border border-white/5 font-mono text-[11px] text-on-surface/90">
+                <span className="text-primary-fixed"># Append task records</span>
+                <p>append file "audit.txt" with content "Job completed"</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      {/* Footer */}
+      <footer className="py-lg border-t border-white/5 z-10 bg-black/15">
+        <div className="max-w-6xl mx-auto px-lg flex flex-col md:flex-row items-center justify-between gap-md text-xs text-on-surface-variant">
+          <div className="flex items-center gap-sm">
+            <img src="/logo.png" alt="DSL Task Automator Logo" className="w-5 h-5 object-contain" />
+            <span className="font-semibold text-white">DSL Task Automator</span>
+          </div>
+          <div className="flex gap-lg">
+            <a href="#" className="hover:text-white transition-colors">Documentation</a>
+            <a href="#" className="hover:text-white transition-colors">Features</a>
+            <a href="#" className="hover:text-white transition-colors">GitHub</a>
+          </div>
+          <div>
+            &copy; {new Date().getFullYear()} DSL Task Automator IDE. All rights reserved.
           </div>
         </div>
+      </footer>
 
-        {/* Central Panel: Switching tabs */}
-        <div className="flex-1 flex flex-col gap-panel-margin z-10 overflow-hidden">
-          
-          {/* Main workspace panels */}
-          <div className="flex-1 glass-panel rounded-xl overflow-hidden flex flex-col">
-            
-            {activeTab === 'editor' && (
-              <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-                
-                {/* Visual script editor */}
-                <div className="flex-1 flex flex-col border-r border-white/5 overflow-hidden">
-                  <div className="p-md border-b border-white/5 flex justify-between items-center bg-surface-container/50">
-                    <span className="font-mono text-xs text-primary-fixed">{selectedFile}</span>
-                    <span className="text-[10px] text-on-surface-variant">Press &apos;Run Task&apos; to execute</span>
-                  </div>
-                  <textarea
-                    value={editorContent}
-                    onChange={(e) => handleEditorChange(e.target.value)}
-                    className="flex-1 bg-surface-container-lowest/40 font-mono text-code-md text-on-surface p-md focus:outline-none resize-none overflow-y-auto leading-relaxed border-none focus:ring-0"
-                    placeholder="# Write your automation tasks here..."
-                    spellCheck={false}
-                  />
-                </div>
+      {/* Auth Modal Overlay */}
+      {showAuthModal && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-md transition-all duration-300 overflow-y-auto"
+          onClick={() => {
+            setShowAuthModal(false);
+            setAuthError('');
+            setAuthInfo('');
+          }}
+        >
+          <div 
+            className={`w-[440px] max-w-full ${authMode === 'signup' ? 'h-[620px]' : 'h-[520px]'} p-lg glass-panel rounded-2xl border border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col justify-between relative transition-all duration-300`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => {
+                setShowAuthModal(false);
+                setAuthError('');
+                setAuthInfo('');
+              }}
+              className="absolute top-4 right-4 p-1 hover:bg-white/5 rounded-full text-on-surface-variant hover:text-white transition-colors cursor-pointer z-20"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
 
-                {/* Live Parser Highlighted view */}
-                <div className="w-80 flex flex-col bg-surface-container-lowest/20 overflow-hidden">
-                  <div className="p-md border-b border-white/5 bg-surface-container/50">
-                    <span className="font-display font-semibold text-xs tracking-wider text-on-surface-variant uppercase">Token Highlights</span>
-                  </div>
-                  <div className="flex-1 p-md overflow-y-auto font-mono text-xs space-y-1 bg-black/25">
-                    {renderHighlightedCode()}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Modal Logo & Headers */}
+            <div className="text-center flex flex-col gap-xs">
+              <img src="/logo.png" alt="DSL Task Automator Logo" className="w-10 h-10 object-contain mx-auto" />
+              <h2 className="font-display font-black text-xl text-white tracking-tight mt-sm">
+                {authMode === 'login' ? 'Sign in to Task Automator' : 'Create an Account'}
+              </h2>
+              <p className="text-xs text-on-surface-variant">
+                {authMode === 'login' ? 'Enter credentials to access dashboard.' : 'Register to schedule automated task scripts.'}
+              </p>
+            </div>
 
-            {activeTab === 'templates' && (
-              <div className="flex-1 p-lg overflow-y-auto flex flex-col gap-lg">
-                <div>
-                  <h2 className="font-display font-bold text-headline-md text-white">Preset Templates</h2>
-                  <p className="text-body-sm text-on-surface-variant">Quickly import pre-built DSL scripts to test features.</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
-                  
-                  {/* Card 1 */}
-                  <div className="glass-panel-interactive rounded-lg p-md flex flex-col justify-between h-48">
-                    <div>
-                      <div className="flex justify-between items-center mb-sm">
-                        <span className="text-[10px] bg-primary-container/10 border border-primary-container/20 text-primary-fixed px-2 py-0.5 rounded font-semibold font-mono">FILE_OP</span>
-                        <span className="text-[10px] text-outline">STABLE</span>
-                      </div>
-                      <h3 className="font-display font-bold text-headline-sm text-white mb-xs">Sync Logs</h3>
-                      <p className="text-body-sm text-on-surface-variant line-clamp-2">Reads logs, performs simulated checks, updates a file, and completes.</p>
-                    </div>
-                    <button
-                      onClick={() => handleAddTemplate('Sync Logs', `# Task Sync automation\nlog "Starting syncing routine..."\ncreate file "dest.txt" with content "synchronized log data"\nread file "dest.txt"\nlog "Syncing routine successfully complete."`)}
-                      className="mt-md w-full bg-white/5 hover:bg-primary-container hover:text-on-primary-fixed border border-white/10 rounded py-1.5 text-xs font-semibold text-white transition-all"
-                    >
-                      Import Template
-                    </button>
-                  </div>
-
-                  {/* Card 2 */}
-                  <div className="glass-panel-interactive rounded-lg p-md flex flex-col justify-between h-48">
-                    <div>
-                      <div className="flex justify-between items-center mb-sm">
-                        <span className="text-[10px] bg-tertiary-fixed/10 border border-tertiary-fixed/20 text-tertiary-fixed px-2 py-0.5 rounded font-semibold font-mono">API_POLL</span>
-                        <span className="text-[10px] text-outline">STABLE</span>
-                      </div>
-                      <h3 className="font-display font-bold text-headline-sm text-white mb-xs">API Check</h3>
-                      <p className="text-body-sm text-on-surface-variant line-clamp-2">Sends HTTP GET requests to fetch online placeholder resources.</p>
-                    </div>
-                    <button
-                      onClick={() => handleAddTemplate('API Check', `# Check REST APIs\nlog "Requesting API..."\nhttp get "https://jsonplaceholder.typicode.com/posts/1"\nlog "Request check successful!"`)}
-                      className="mt-md w-full bg-white/5 hover:bg-primary-container hover:text-on-primary-fixed border border-white/10 rounded py-1.5 text-xs font-semibold text-white transition-all"
-                    >
-                      Import Template
-                    </button>
-                  </div>
-
-                  {/* Card 3 */}
-                  <div className="glass-panel-interactive rounded-lg p-md flex flex-col justify-between h-48">
-                    <div>
-                      <div className="flex justify-between items-center mb-sm">
-                        <span className="text-[10px] bg-secondary/10 border border-secondary/20 text-secondary px-2 py-0.5 rounded font-semibold font-mono">SCHEDULER</span>
-                        <span className="text-[10px] text-outline">CRON</span>
-                      </div>
-                      <h3 className="font-display font-bold text-headline-sm text-white mb-xs">Job Alert</h3>
-                      <p className="text-body-sm text-on-surface-variant line-clamp-2">Runs a recurring automation flow block indefinitely every 5 seconds.</p>
-                    </div>
-                    <button
-                      onClick={() => handleAddTemplate('Job Alert', `# Repeat task automation\nevery 5 seconds do {\n  log "Recurring checks..."\n}`)}
-                      className="mt-md w-full bg-white/5 hover:bg-primary-container hover:text-on-primary-fixed border border-white/10 rounded py-1.5 text-xs font-semibold text-white transition-all"
-                    >
-                      Import Template
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'scheduler' && (
-              <div className="flex-1 p-lg overflow-y-auto flex flex-col gap-lg">
-                <div>
-                  <h2 className="font-display font-bold text-headline-md text-white">Active Scheduler Tasks</h2>
-                  <p className="text-body-sm text-on-surface-variant">Monitor and control loops configured inside your scripts.</p>
-                </div>
-
-                {schedules.length === 0 ? (
-                  <div className="flex-1 border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center p-xl text-center">
-                    <svg className="w-12 h-12 text-on-surface-variant/40 mb-md" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <h3 className="text-on-surface font-semibold mb-xs">No active scheduled loops</h3>
-                    <p className="text-body-sm text-on-surface-variant max-w-sm">Use the syntax &quot;every X seconds do &#123; ... &#125;&quot; in your script to spin up scheduled runner tasks.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-md">
-                    {schedules.map((task) => (
-                      <div key={task.id} className="glass-panel p-md rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-md border border-white/5">
-                        <div className="flex gap-md items-start">
-                          <div className={`p-2 rounded-full ${task.isActive ? 'bg-tertiary-container/10 text-tertiary-fixed' : 'bg-white/5 text-on-surface-variant'}`}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-sm">
-                              <h3 className="font-display font-bold text-body-md text-white">{task.name}</h3>
-                              <span className={`text-[9px] font-mono px-2 py-0.5 rounded font-semibold ${task.isActive ? 'bg-tertiary-container/10 text-tertiary-fixed border border-tertiary-fixed/20' : 'bg-white/5 text-outline border border-white/10'}`}>
-                                {task.isActive ? 'ACTIVE' : 'SUSPENDED'}
-                              </span>
-                            </div>
-                            <p className="text-xs text-on-surface-variant font-mono mt-1">Runs: every {task.interval} seconds</p>
-                            <div className="flex gap-md mt-sm text-[10px] text-on-surface-variant">
-                              <span>Last Triggered: <strong className="text-white font-mono">{task.lastRun || 'Never'}</strong></span>
-                              <span>Next Trigger: <strong className="text-white font-mono">{task.nextRun || 'Pending'}</strong></span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-sm items-center self-end md:self-center">
-                          <button
-                            onClick={() => handleToggleSchedule(task)}
-                            className={`px-sm py-1 rounded text-xs font-semibold border ${
-                              task.isActive
-                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
-                                : 'bg-tertiary-container/10 border-tertiary-fixed/30 text-tertiary-fixed hover:bg-tertiary-container/20'
-                            }`}
-                          >
-                            {task.isActive ? 'Pause' : 'Resume'}
-                          </button>
-                          <button
-                            onClick={() => handleRemoveSchedule(task.id)}
-                            className="px-sm py-1 rounded text-xs font-semibold bg-error/10 border border-error/30 text-error hover:bg-error/20"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'settings' && (
-              <div className="flex-1 p-lg overflow-y-auto flex flex-col gap-lg">
-                <div>
-                  <h2 className="font-display font-bold text-headline-md text-white">System Settings &amp; Personalization</h2>
-                  <p className="text-body-sm text-on-surface-variant">Modify active glass overlays, animations and virtual FS metrics.</p>
-                </div>
-
-                <div className="glass-panel p-md rounded-xl space-y-md border border-white/5">
-                  <h3 className="font-display font-semibold text-body-md text-white">Visual Effects Control</h3>
-                  
-                  {/* Switch animations */}
-                  <div className="flex flex-col gap-sm">
-                    <label className="text-body-sm text-on-surface-variant">Background Graphics Engine</label>
-                    <div className="flex gap-sm">
-                      <button
-                        onClick={() => setBackgroundType('shader')}
-                        className={`px-md py-1.5 rounded text-xs font-semibold border ${
-                          backgroundType === 'shader' ? 'bg-primary-container text-on-primary-container border-primary-container' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
-                        }`}
-                      >
-                        WebGL Organic Shader
-                      </button>
-                      <button
-                        onClick={() => setBackgroundType('three')}
-                        className={`px-md py-1.5 rounded text-xs font-semibold border ${
-                          backgroundType === 'three' ? 'bg-primary-container text-on-primary-container border-primary-container' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
-                        }`}
-                      >
-                        Three.js Node Graph
-                      </button>
-                      <button
-                        onClick={() => setBackgroundType('none')}
-                        className={`px-md py-1.5 rounded text-xs font-semibold border ${
-                          backgroundType === 'none' ? 'bg-primary-container text-on-primary-container border-primary-container' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
-                        }`}
-                      >
-                        Disabled (Static Canvas)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Opacity slider */}
-                  <div className="flex flex-col gap-sm pt-sm">
-                    <div className="flex justify-between">
-                      <label className="text-body-sm text-on-surface-variant">Animation Glow Opacity</label>
-                      <span className="text-xs font-mono text-white">{bgOpacity}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={bgOpacity}
-                      onChange={(e) => setBgOpacity(parseInt(e.target.value, 10))}
-                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary-container"
-                    />
-                  </div>
-                </div>
-
-                <div className="glass-panel p-md rounded-xl space-y-md border border-white/5">
-                  <h3 className="font-display font-semibold text-body-md text-white">Reset Storage</h3>
-                  <p className="text-body-sm text-on-surface-variant">Clear all customized files and virtual states, returning the IDE to its clean-slate layout defaults.</p>
-                  <button
-                    onClick={() => {
-                      if (confirm('Are you sure you want to restore defaults? All virtual scripts will be lost.')) {
-                        localStorage.removeItem('lscript_files');
-                        localStorage.removeItem('lscript_schedules');
-                        setFiles(DEFAULT_FILES);
-                        setSelectedFile('api_monitor.lscript');
-                        setSchedules([]);
-                        addLog('warn', 'Virtual system reset to factory presets.');
-                      }
-                    }}
-                    className="bg-error/10 hover:bg-error/20 border border-error/30 text-error px-md py-2 rounded text-xs font-semibold transition-all"
-                  >
-                    Restore Workspace Factory Defaults
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-
-          {/* Bottom Panel: Live scrolling console monitor logs */}
-          <div className="h-64 glass-panel rounded-xl flex flex-col overflow-hidden">
-            <div className="p-md border-b border-white/5 bg-surface-container/50 flex justify-between items-center flex-shrink-0">
-              <span className="font-display font-semibold text-xs tracking-wider text-on-surface-variant uppercase flex items-center gap-sm">
-                <span className="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse" />
-                Live Console Monitor logs
-              </span>
+            {/* Mode Switcher Tabs */}
+            <div className="flex bg-white/5 border border-white/10 p-0.5 rounded-full">
               <button
-                onClick={() => setLogs([])}
-                className="text-[10px] text-on-surface-variant hover:text-white uppercase font-semibold hover:bg-white/5 px-2 py-1 rounded"
+                type="button"
+                onClick={() => { setAuthMode('login'); setAuthError(''); setAuthInfo(''); }}
+                className={`flex-1 py-1.5 text-center rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  authMode === 'login' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-white'
+                }`}
               >
-                Clear logs
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('signup'); setAuthError(''); setAuthInfo(''); }}
+                className={`flex-1 py-1.5 text-center rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  authMode === 'signup' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-white'
+                }`}
+              >
+                Create Account
               </button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-md font-mono text-xs space-y-2 bg-black/45">
-              {logs.length === 0 ? (
-                <span className="text-outline italic">Console idle. Hit &apos;Run Task&apos; or wait for scheduled trigger updates.</span>
-              ) : (
-                logs.map((log) => (
-                  <div key={log.id} className="flex gap-lg items-start border-b border-white/2.5 pb-1">
-                    <span className="text-outline select-none flex-shrink-0">{log.timestamp}</span>
-                    <span className={`flex-shrink-0 font-semibold select-none uppercase text-[10px] px-1.5 py-0.5 rounded leading-none ${
-                      log.type === 'success' ? 'bg-tertiary-container/10 text-tertiary-fixed border border-tertiary-fixed/20' :
-                      log.type === 'warn' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                      log.type === 'error' ? 'bg-error-container/10 text-error border border-error/20' :
-                      'bg-primary-container/10 text-primary-fixed border border-primary-container/20'
-                    }`}>
-                      {log.type}
-                    </span>
-                    <span className="text-on-surface break-all white-space-pre-wrap">{log.message}</span>
-                  </div>
-                ))
+
+            {authError && (
+              <div className="p-sm bg-error-container/10 border border-error/20 rounded-lg text-xs text-error">
+                {authError}
+              </div>
+            )}
+
+            {authInfo && (
+              <div className="p-sm bg-primary-container/10 border border-primary-container/20 rounded-lg text-xs text-primary-fixed">
+                {authInfo}
+              </div>
+            )}
+
+            {/* Auth Form */}
+            <form onSubmit={handleAuthSubmit} className="flex flex-col gap-md">
+              <div className="flex flex-col gap-xs">
+                <label className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@domain.com"
+                  className="w-full bg-surface-container-lowest/50 border border-white/10 rounded-lg px-md py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary-container"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-xs">
+                <label className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-surface-container-lowest/50 border border-white/10 rounded-lg px-md py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary-container"
+                  required
+                />
+              </div>
+
+              {authMode === 'signup' && (
+                <div className="flex flex-col gap-xs">
+                  <label className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-surface-container-lowest/50 border border-white/10 rounded-lg px-md py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary-container"
+                    required
+                  />
+                </div>
               )}
-              <div ref={logsEndRef} />
-            </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full bg-primary-container text-on-primary-container py-2.5 rounded-full font-bold shadow-[0_0_15px_rgba(0,242,254,0.3)] hover:shadow-[0_0_20px_rgba(0,242,254,0.6)] transition-all active:scale-95 text-sm cursor-pointer disabled:opacity-50"
+              >
+                {authLoading ? 'Processing...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            </form>
           </div>
-
         </div>
-
-      </div>
-
+      )}
     </div>
   );
 }
